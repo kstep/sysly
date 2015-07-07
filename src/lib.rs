@@ -13,6 +13,7 @@ use std::convert::AsRef;
 use std::io::{ self, Write };
 use std::net::{ Ipv4Addr, UdpSocket, SocketAddr, SocketAddrV4 };
 use std::path::Path;
+use std::ops::Deref;
 use time::Tm;
 use unix_socket::UnixStream;
 
@@ -182,7 +183,7 @@ impl Syslog {
   pub fn host(self, local: &str) -> Syslog {
     Syslog {
       facility: self.facility,
-      host: Some(local.to_string()),
+      host: Some(local.to_owned()),
       app: self.app,
       pid: self.pid,
       msgid: self.msgid,
@@ -196,7 +197,7 @@ impl Syslog {
     Syslog {
       facility: self.facility,
       host: self.host,
-      app: Some(app.to_string()),
+      app: Some(app.to_owned()),
       pid: self.pid,
       msgid: self.msgid,
       transport: self.transport
@@ -210,7 +211,7 @@ impl Syslog {
       facility: self.facility,
       host: self.host,
       app: self.app,
-      pid: Some(pid.to_string()),
+      pid: Some(pid.to_owned()),
       msgid: self.msgid,
       transport: self.transport
     }
@@ -271,19 +272,19 @@ impl Syslog {
 
   fn log(&mut self, severity: Severity,  msg: &str) -> Result {
     let formatted = Syslog::line(
-        self.facility.clone(), severity, time::now(), self.host.clone(), self.app.clone(), self.pid.clone(), self.msgid.clone(), msg);
+        self.facility.clone(), severity, time::now(), self.host.as_ref().map(Deref::deref), self.app.as_ref().map(Deref::deref), self.pid.as_ref().map(Deref::deref), self.msgid.as_ref().map(Deref::deref), msg);
     self.transport.send(&formatted)
   }
 
-  fn line(facility: Facility, severity: Severity, timestamp: Tm, host: Option<String>, app: Option<String>, pid: Option<String>, msgid: Option<String>, msg: &str) -> String {
+  fn line(facility: Facility, severity: Severity, timestamp: Tm, host: Option<&str>, app: Option<&str>, pid: Option<&str>, msgid: Option<&str>, msg: &str) -> String {
     format!(
       "<{:?}>1 {} {} {} {} {} {}",
         Syslog::priority(facility, severity),
         timestamp.rfc3339(),
-        host.unwrap_or(NIL.to_string()),
-        app.unwrap_or(NIL.to_string()),
-        pid.unwrap_or(NIL.to_string()),
-        msgid.unwrap_or(NIL.to_string()),
+        host.unwrap_or(NIL),
+        app.unwrap_or(NIL),
+        pid.unwrap_or(NIL),
+        msgid.unwrap_or(NIL),
         msg)
   }
 
@@ -312,7 +313,7 @@ mod tests {
     let ts = time::now();
     let host = "foo.local";
     assert_eq!(Syslog::line(
-      Facility::LOCAL0, Severity::INFO, ts, Some(host.to_string()), None, None, None, "yo"),
+      Facility::LOCAL0, Severity::INFO, ts, Some(host), None, None, None, "yo"),
       format!("<134>1 {} {} - - - yo", ts.rfc3339(), host));
   }
 
@@ -321,7 +322,7 @@ mod tests {
     let ts = time::now();
     let app = "sysly";
     assert_eq!(Syslog::line(
-      Facility::LOCAL0, Severity::INFO, ts, None, Some(app.to_string()), None, None, "yo"),
+      Facility::LOCAL0, Severity::INFO, ts, None, Some(app), None, None, "yo"),
       format!("<134>1 {} - {} - - yo", ts.rfc3339(), app));
   }
 
@@ -330,7 +331,7 @@ mod tests {
     let ts = time::now();
     let pid = "16";
     assert_eq!(Syslog::line(
-      Facility::LOCAL0, Severity::INFO, ts, None, None, Some(pid.to_string()), None, "yo"),
+      Facility::LOCAL0, Severity::INFO, ts, None, None, Some(pid), None, "yo"),
       format!("<134>1 {} - - {} - yo", ts.rfc3339(), pid));
   }
 
@@ -339,7 +340,7 @@ mod tests {
     let ts = time::now();
     let msgid = "TCPIN";
     assert_eq!(Syslog::line(
-      Facility::LOCAL0, Severity::INFO, ts, None, None, None, Some(msgid.to_string()), "yo"),
+      Facility::LOCAL0, Severity::INFO, ts, None, None, None, Some(msgid), "yo"),
       format!("<134>1 {} - - - {} yo", ts.rfc3339(), msgid));
   }
 
